@@ -3,7 +3,7 @@ const db = require('../../../database');
 const UNOGame = require('./gameLogic');
 
 // 🔹 CREATE GAME
-async function createGame(hostId, hostName, maxPlayers = 6) {
+async function createGame(hostId, playerName, hostName, maxPlayers = 6) {
   const gameId = uuidv4();
   const game = new UNOGame(maxPlayers);
 
@@ -13,14 +13,15 @@ async function createGame(hostId, hostName, maxPlayers = 6) {
       return { success: false, message: addResult.message };
 
     // Insert new game
-    await db.execute(
-      'INSERT INTO games (id, host_id, status, max_players) VALUES (?, ?, ?, ?)',
-      [gameId, hostId, 'waiting', maxPlayers]
-    );
+   await db.query(
+  'INSERT INTO games (id, player_name, host_id, status, max_players) VALUES ($1, $2, $3, $4, $5)',
+  [gameId, playerName, hostId, 'waiting', maxPlayers]
+);
+
 
     // Insert host player
-    await db.execute(
-      'INSERT INTO game_players (game_id, player_id, hand, is_host) VALUES (?, ?, ?, ?)',
+    await db.query(
+      'INSERT INTO game_players (game_id, player_id, hand, is_host) VALUES ($1, $2, $3, $4)',
       [gameId, hostId, JSON.stringify(game.getPlayerCards(hostId)), true]
     );
 
@@ -48,7 +49,7 @@ async function createGame(hostId, hostName, maxPlayers = 6) {
 async function joinGame(gameId, playerId, playerName) {
   try {
     // Check game exists
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id=?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id=?', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
     if (gameRows[0].status !== 'waiting')
@@ -57,7 +58,7 @@ async function joinGame(gameId, playerId, playerName) {
     const game = new UNOGame(gameRows[0].max_players);
 
     // Load existing players
-    const [playerRows] = await db.execute('SELECT * FROM game_players WHERE game_id=?', [gameId]);
+    const [playerRows] = await db.query('SELECT * FROM game_players WHERE game_id=?', [gameId]);
     playerRows.forEach((p) => {
       game.addPlayer(p.player_id, p.player_name || `Player-${p.player_id.slice(0, 5)}`);
     });

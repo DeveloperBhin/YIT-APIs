@@ -1,44 +1,21 @@
-// const mysql = require('mysql2/promise');
-// require('dotenv').config();
-
-// const db = mysql.createPool({
-//   host: process.env.MYSQLHOST,
-//   user: process.env.MYSQLUSER,
-//   password: process.env.MYSQL_ROOT_PASSWORD,
-//   database: process.env.MYSQL_DATABASE,
-//   port: process.env.MYSQLPORT,
-// });
-
-
-// // Test the connection
-// async function testConnection() {
-//   try {
-//     const connection = await db.getConnection();
-//     console.log('✅ Connected to MySQL successfully!');
-//     connection.release(); // release the connection back to pool
-//   } catch (err) {
-//     console.error('❌ MySQL connection failed:', err.message);
-//   }
-// }
-
-// testConnection();
-
-// module.exports = db;
-
-
-const mysql = require('mysql2/promise');
+// db.js
+const { Pool } = require('pg'); // PostgreSQL client
 require('dotenv').config();
 
-const db = mysql.createPool(process.env.DATABASE_URL);
+// Create a connection pool
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // required for Render PostgreSQL
+});
 
 // Test the connection
 async function testConnection() {
   try {
-    const connection = await db.getConnection();
-    console.log('✅ Connected to Railway MySQL successfully!');
-    connection.release();
+    const client = await db.connect();
+    console.log('✅ Connected to Render PostgreSQL successfully!');
+    client.release();
   } catch (err) {
-    console.error('❌ MySQL connection failed:', err.message);
+    console.error('❌ PostgreSQL connection failed:', err.message);
   }
 }
 
