@@ -46,38 +46,43 @@ async function createGame(hostName, maxPlayers = 6) {
   }
 }
 
+
 async function getAvailableGames(minutesAgo = 2) {
   try {
-    // Select only "waiting" games created recently
-    const query = `
+    const { rows } = await db.query(
+      `
       SELECT 
         g.id AS game_id,
-        g.max_players,
+        g.host_id,
         g.player_name AS host_name,
+        g.max_players,
+        g.status,
         g.created_at,
         COUNT(p.player_id) AS current_players
       FROM games g
       LEFT JOIN game_players p ON g.id = p.game_id
-      WHERE g.status = $1
-        AND g.created_at >= NOW() - INTERVAL '${minutesAgo} minutes'
-      GROUP BY g.id, g.max_players, g.player_name, g.created_at
-      ORDER BY g.created_at DESC;
-    `;
+      WHERE g.status = 'waiting'
+        AND g.created_at >= NOW() - ($1 || ' minutes')::INTERVAL
+      GROUP BY g.id, g.host_id, g.player_name, g.max_players, g.status, g.created_at
+      ORDER BY g.created_at DESC
+      `,
+      [minutesAgo.toString()]
+    );
 
-    const result = await db.query(query, ['waiting']);
-
-    const rooms = result.rows.map((r) => ({
+    const rooms = rows.map((r) => ({
       gameId: r.game_id,
-      maxPlayers: Number(r.max_players),
-      currentPlayers: Number(r.current_players),
+      hostId: r.host_id,
       hostName: r.host_name,
+      maxPlayers: r.max_players,
+      currentPlayers: Number(r.current_players),
+      status: r.status,
       createdAt: r.created_at,
     }));
 
     return { success: true, rooms };
   } catch (err) {
     console.error('❌ getAvailableGames error:', err.message);
-    return { success: false, message: err.message, rooms: [] };
+    return { success: false, rooms: [] };
   }
 }
 
