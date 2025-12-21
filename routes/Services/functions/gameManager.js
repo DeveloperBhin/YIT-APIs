@@ -46,32 +46,19 @@ async function createGame(hostName, maxPlayers = 6) {
   }
 }
 
-
- async function getAvailableGames(minutesAgo = 2) {
+async function getAvailableGames() {
   try {
-    const result = await db.query(
-      `SELECT 
-          g.id AS "gameId",
-          g.max_players AS "maxPlayers",
-          g.player_name AS "hostName",
-          g.id AS "hostId",
-          g.created_at AS "createdAt",
-          COUNT(p.player_id) AS "currentPlayers"
-       FROM games g
-       LEFT JOIN game_players p ON g.id = p.game_id
-       WHERE g.status = $1 
-         AND g.created_at >= NOW() - ($2 || ' minutes')::interval
-       GROUP BY g.id`,
-      ['waiting', minutesAgo]
-    );
+    const result = await db.query('SELECT * FROM games WHERE status = $1', ['waiting']);
 
-    const rooms = result.rows.map((r) => ({
-      gameId: r.gameId,
-      maxPlayers: Number(r.maxPlayers),
-      currentPlayers: Number(r.currentPlayers),
-      hostName: r.hostName,
-      hostId: r.hostId,
-      createdAt: r.createdAt,
+    console.log('🔹 Available games:', result.rows);
+
+    const rooms = result.rows.map((row) => ({
+      gameId: row.id,
+      hostName: row.host_id,       // map host_id → hostName
+      maxPlayers: row.max_players,
+      currentPlayers: 1,           // if you have a way to count players, replace 1
+      status: row.status,
+      createdAt: row.created_at
     }));
 
     return { success: true, rooms };
