@@ -34,17 +34,31 @@ io.on('connection', (socket) => {
 
   // CREATE GAME
   socket.on('create_game', async ({ playerName, maxPlayers }) => {
-    try {
-      const result = await createGame(socket.id, playerName, maxPlayers);
-      if (!result.success) return socket.emit('game_error', { message: result.message });
-
-      socket.join(result.gameId);
-      socket.emit('game_room_created', { room: result.game, player: result.player });
-    } catch (err) {
-      console.error('❌ create_game error:', err.message);
-      socket.emit('game_error', { message: err.message });
+  try {
+    if (!playerName) {
+      return socket.emit('game_error', { message: 'Player name is required' });
     }
-  });
+
+    // Create the game and host player
+    const result = await createGame(playerName, maxPlayers);
+
+    if (!result.success) return socket.emit('game_error', { message: result.message });
+
+    // Join the socket to the room
+    socket.join(result.gameId);
+
+    // Emit game info back to host
+    socket.emit('game_room_created', { 
+      room: result.room, 
+      player: result.player, 
+      game: result.game 
+    });
+  } catch (err) {
+    console.error('❌ create_game error:', err.message);
+    socket.emit('game_error', { message: err.message });
+  }
+});
+
 
   // JOIN GAME
   socket.on('join_game', async ({ gameId, playerName }) => {
