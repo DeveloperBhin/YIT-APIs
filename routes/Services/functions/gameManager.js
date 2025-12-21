@@ -52,14 +52,17 @@ async function getAvailableGames() {
 
     console.log('🔹 Available games:', result.rows);
 
-    const rooms = result.rows.map((row) => ({
-      gameId: row.id,
-      hostName: row.host_id,       // map host_id → hostName
-      maxPlayers: row.max_players,
-      currentPlayers: 1,           // if you have a way to count players, replace 1
-      status: row.status,
-      createdAt: row.created_at
-    }));
+    const rooms = result.rows.map(row => ({
+  gameId: row.id,
+  hostName: row.host_id,
+  maxPlayers: row.max_players,
+  currentPlayers: 1, // or count from game_players table
+  status: row.status,
+  createdAt: row.created_at
+}));
+
+socket.emit('available_rooms', { rooms });
+
 
     return { success: true, rooms };
   } catch (err) {
