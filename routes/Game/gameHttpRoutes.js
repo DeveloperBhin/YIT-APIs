@@ -8,7 +8,8 @@ const {
   startGame,
   playCard,
   drawCard,
-  getGameState
+  getGameState,
+  getAvailableGames
 } = require('../Services/functions/gameManager'); // your existing functions
 
 // Create game
@@ -21,6 +22,19 @@ router.post('/games', async (req, res) => {
   const result = await createGame(playerName, maxPlayers);
   res.json(result);
 });
+
+router.post('/getgames', async (req, res) => {
+  try {
+    const { minutesAgo } = req.body || {};
+    const result = await getAvailableGames(minutesAgo || 2);
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('❌ /getgames error:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 
 // Join game
 router.post('/games/join', async (req, res) => {

@@ -46,6 +46,43 @@ async function createGame(hostName, maxPlayers = 6) {
   }
 }
 
+async function getAvailableGames(minutesAgo = 2) {
+  try {
+    // Select only "waiting" games created recently
+    const query = `
+      SELECT 
+        g.id AS game_id,
+        g.max_players,
+        g.player_name AS host_name,
+        g.created_at,
+        COUNT(p.player_id) AS current_players
+      FROM games g
+      LEFT JOIN game_players p ON g.id = p.game_id
+      WHERE g.status = $1
+        AND g.created_at >= NOW() - INTERVAL '${minutesAgo} minutes'
+      GROUP BY g.id, g.max_players, g.player_name, g.created_at
+      ORDER BY g.created_at DESC;
+    `;
+
+    const result = await db.query(query, ['waiting']);
+
+    const rooms = result.rows.map((r) => ({
+      gameId: r.game_id,
+      maxPlayers: Number(r.max_players),
+      currentPlayers: Number(r.current_players),
+      hostName: r.host_name,
+      createdAt: r.created_at,
+    }));
+
+    return { success: true, rooms };
+  } catch (err) {
+    console.error('❌ getAvailableGames error:', err.message);
+    return { success: false, message: err.message, rooms: [] };
+  }
+}
+
+
+
 // 🔹 JOIN GAME
 async function joinGame(gameId, playerId, playerName) {
   try {
@@ -174,20 +211,110 @@ async function leaveGame(playerId, gameId) {
 }
 
 // startGame.js
+// async function startGame(gameId, playerId) {
+//   try {
+//     // ✅ Verify the player is part of this game
+//     const [playerRows] = await db.query(
+//       'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
+//       [gameId, playerId]
+//     );
+//     if (playerRows.length === 0)
+//       return { success: false, message: 'Player not in this game' };
+
+//     // ✅ Load game info
+//     const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
+//     if (gameRows.length === 0)
+//       return { success: false, message: 'Game not found' };
+
+//     const gameData = gameRows[0];
+//     const maxPlayers = gameData.max_players || 6;
+
+//     // Initialize UNO game
+//     const game = new UNOGame(maxPlayers);
+
+//     // ✅ Load all players and restore hands if they exist
+//     const [allPlayers] = await db.query(
+//       'SELECT * FROM game_players WHERE game_id = $1',
+//       [gameId]
+//     );
+
+//     allPlayers.forEach((p) => {
+//       const playerName = p.player_name || p.player_id;
+//       const added = game.addPlayer(p.player_id, playerName);
+
+//       if (p.hand) {
+//         try {
+//           added.player.cards = JSON.parse(p.hand);
+//         } catch {
+//           console.warn(`⚠️ Could not parse hand for ${p.player_id}`);
+//         }
+//       }
+//     });
+
+//     // ✅ Start the game: generate deck, deal hands, create discard pile
+//     const startResult = game.startGame();
+//     if (!startResult.success)
+//       return { success: false, message: startResult.message };
+
+//     const firstCard = startResult.discardPileTop;
+//     const firstPlayer = game.players[0]; // host starts
+
+//     // ✅ Update DB: set game status, discard pile, and current player
+//     await db.query(
+//       'UPDATE games SET status = $1, discard_pile = $1, current_player_id = $1 WHERE id = $1',
+//       ['started', JSON.stringify(game.discardPile), firstPlayer.id, gameId]
+//     );
+
+//     // ✅ Save each player’s hand
+//     for (const p of game.players) {
+//       const hand = JSON.stringify(p.cards || []);
+//       await db.query(
+//         'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
+//         [hand, gameId, p.id]
+//       );
+//     }
+
+//     // ✅ Log for debugging
+//     console.log('🃏 Initial hands:');
+//     game.players.forEach((p) => {
+//       console.log(`Player ${p.id}:`, p.cards.map(c => `${c.color} ${c.value}`));
+//     });
+//     console.log('🃏 Discard pile top card:', firstCard);
+//     console.log('🎮 First player turn:', firstPlayer.id);
+
+//     // ✅ Return game state: only show cards to requesting player
+//     return {
+//       success: true,
+//       gameId,
+//       currentTurn: firstPlayer.id,
+//       discardPileTop: firstCard,
+//       game: game.getGameState(playerId)
+//     };
+
+//   } catch (err) {
+//     console.error('❌ startGame error:', err.message);
+//     return { success: false, message: err.message };
+//   }
+// }
+
 async function startGame(gameId, playerId) {
   try {
-    // ✅ Verify the player is part of this game
-    const [playerRows] = await db.query(
-      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
+    // ✅ Check if player is in this game
+    const playerResult = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
       [gameId, playerId]
     );
-    if (playerRows.length === 0)
+    const playerRows = playerResult.rows;
+    if (!playerRows || playerRows.length === 0) {
       return { success: false, message: 'Player not in this game' };
+    }
 
     // ✅ Load game info
-    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
-    if (gameRows.length === 0)
+    const gameResult = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
+    const gameRows = gameResult.rows;
+    if (!gameRows || gameRows.length === 0) {
       return { success: false, message: 'Game not found' };
+    }
 
     const gameData = gameRows[0];
     const maxPlayers = gameData.max_players || 6;
@@ -196,15 +323,15 @@ async function startGame(gameId, playerId) {
     const game = new UNOGame(maxPlayers);
 
     // ✅ Load all players and restore hands if they exist
-    const [allPlayers] = await db.query(
+    const allPlayersResult = await db.query(
       'SELECT * FROM game_players WHERE game_id = $1',
       [gameId]
     );
+    const allPlayers = allPlayersResult.rows;
 
     allPlayers.forEach((p) => {
-      const playerName = p.player_name || p.player_id;
+      const playerName = p.player_name || `Player-${p.player_id.slice(0, 5)}`;
       const added = game.addPlayer(p.player_id, playerName);
-
       if (p.hand) {
         try {
           added.player.cards = JSON.parse(p.hand);
@@ -214,46 +341,38 @@ async function startGame(gameId, playerId) {
       }
     });
 
-    // ✅ Start the game: generate deck, deal hands, create discard pile
+    // ✅ Start the game
     const startResult = game.startGame();
-    if (!startResult.success)
+    if (!startResult.success) {
       return { success: false, message: startResult.message };
+    }
 
     const firstCard = startResult.discardPileTop;
     const firstPlayer = game.players[0]; // host starts
 
-    // ✅ Update DB: set game status, discard pile, and current player
+    // ✅ Update game status, discard pile, current player
     await db.query(
-      'UPDATE games SET status = $1, discard_pile = $1, current_player_id = $1 WHERE id = $1',
-      ['started', JSON.stringify(game.discardPile), firstPlayer.id, gameId]
+      'UPDATE games SET status=$1, discard_pile=$2, current_player_id=$3 WHERE id=$4',
+      ['playing', JSON.stringify(game.discardPile), firstPlayer.id, gameId]
     );
 
-    // ✅ Save each player’s hand
+    // ✅ Save each player's hand
     for (const p of game.players) {
       const hand = JSON.stringify(p.cards || []);
       await db.query(
-        'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
+        'UPDATE game_players SET hand=$1 WHERE game_id=$2 AND player_id=$3',
         [hand, gameId, p.id]
       );
     }
 
-    // ✅ Log for debugging
-    console.log('🃏 Initial hands:');
-    game.players.forEach((p) => {
-      console.log(`Player ${p.id}:`, p.cards.map(c => `${c.color} ${c.value}`));
-    });
-    console.log('🃏 Discard pile top card:', firstCard);
-    console.log('🎮 First player turn:', firstPlayer.id);
-
-    // ✅ Return game state: only show cards to requesting player
+    // ✅ Return game state
     return {
       success: true,
       gameId,
       currentTurn: firstPlayer.id,
       discardPileTop: firstCard,
-      game: game.getGameState(playerId)
+      game: game.getGameState(playerId), // only show cards for requesting player
     };
-
   } catch (err) {
     console.error('❌ startGame error:', err.message);
     return { success: false, message: err.message };
@@ -557,5 +676,6 @@ module.exports = {
   startGame,
   playCard,
   drawCard,
-  getGameState
+  getGameState,
+getAvailableGames
 };
