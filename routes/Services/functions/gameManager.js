@@ -50,7 +50,7 @@ async function createGame(hostName, maxPlayers = 6) {
 async function joinGame(gameId, playerId, playerName) {
   try {
     // Check game exists
-    const [gameRows] = await db.query('SELECT * FROM games WHERE id=?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
     if (gameRows[0].status !== 'waiting')
@@ -59,7 +59,7 @@ async function joinGame(gameId, playerId, playerName) {
     const game = new UNOGame(gameRows[0].max_players);
 
     // Load existing players
-    const [playerRows] = await db.query('SELECT * FROM game_players WHERE game_id=?', [gameId]);
+    const [playerRows] = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
     playerRows.forEach((p) => {
       game.addPlayer(p.player_id, p.player_name || `Player-${p.player_id.slice(0, 5)}`);
     });
@@ -70,8 +70,8 @@ async function joinGame(gameId, playerId, playerName) {
       return { success: false, message: addResult.message };
 
     // Save player in DB
-    await db.execute(
-      'INSERT INTO game_players (game_id, player_id, hand, is_host) VALUES (?, ?, ?, ?)',
+    await db.query(
+      'INSERT INTO game_players (game_id, player_id, hand, is_host) VALUES ($1, $2, $3, $4)',
       [gameId, playerId, JSON.stringify(game.getPlayerCards(playerId)), false]
     );
 
@@ -100,22 +100,22 @@ async function joinGame(gameId, playerId, playerName) {
 async function leaveGame(playerId, gameId) {
   try {
     // ✅ Ensure player exists in this game
-    const [playerRows] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ? AND player_id = ?',
+    const [playerRows] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
       [gameId, playerId]
     );
     if (playerRows.length === 0)
       return { success: false, message: 'Player not found in this game' };
 
     // ✅ Load game info
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id = ?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
 
     const game = new UNOGame(gameRows[0].max_players);
 
     // ✅ Load all current players
-    const [allPlayers] = await db.execute('SELECT * FROM game_players WHERE game_id = ?', [gameId]);
+    const [allPlayers] = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
     allPlayers.forEach((p) => game.addPlayer(p.player_id, p.player_name));
 
     // ✅ Remove player
@@ -124,7 +124,7 @@ async function leaveGame(playerId, gameId) {
       return { success: false, message: removeResult.message };
 
     // ✅ Delete player from DB
-    await db.execute('DELETE FROM game_players WHERE game_id = ? AND player_id = ?', [
+    await db.query('DELETE FROM game_players WHERE game_id = $1 AND player_id = $1', [
       gameId,
       playerId,
     ]);
@@ -134,21 +134,21 @@ async function leaveGame(playerId, gameId) {
       const newHostId = game.players[0].id;
 
       // Ensure the first player becomes host if needed
-      await db.execute(
-        'UPDATE game_players SET is_host = (player_id = ?) WHERE game_id = ?',
+      await db.query(
+        'UPDATE game_players SET is_host = (player_id = $1) WHERE game_id = $1',
         [newHostId, gameId]
       );
 
       console.log(`👑 New host assigned: ${newHostId}`);
 
       // Update game state if needed
-      await db.execute(
-        'UPDATE games SET host_id = ? WHERE id = ?',
+      await db.quey(
+        'UPDATE games SET host_id = $1 WHERE id = $1',
         [newHostId, gameId]
       );
     } else {
       // ✅ If no players left, delete the game entirely
-      await db.execute('DELETE FROM games WHERE id = ?', [gameId]);
+      await db.query('DELETE FROM games WHERE id = $1', [gameId]);
       console.log(`🗑️ Game ${gameId} deleted (no players left).`);
 
       return { success: true, message: 'Game deleted (no players left)', gameDeleted: true };
@@ -177,15 +177,15 @@ async function leaveGame(playerId, gameId) {
 async function startGame(gameId, playerId) {
   try {
     // ✅ Verify the player is part of this game
-    const [playerRows] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ? AND player_id = ?',
+    const [playerRows] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
       [gameId, playerId]
     );
     if (playerRows.length === 0)
       return { success: false, message: 'Player not in this game' };
 
     // ✅ Load game info
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id = ?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
 
@@ -196,8 +196,8 @@ async function startGame(gameId, playerId) {
     const game = new UNOGame(maxPlayers);
 
     // ✅ Load all players and restore hands if they exist
-    const [allPlayers] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ?',
+    const [allPlayers] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1',
       [gameId]
     );
 
@@ -223,16 +223,16 @@ async function startGame(gameId, playerId) {
     const firstPlayer = game.players[0]; // host starts
 
     // ✅ Update DB: set game status, discard pile, and current player
-    await db.execute(
-      'UPDATE games SET status = ?, discard_pile = ?, current_player_id = ? WHERE id = ?',
+    await db.query(
+      'UPDATE games SET status = $1, discard_pile = $1, current_player_id = $1 WHERE id = $1',
       ['started', JSON.stringify(game.discardPile), firstPlayer.id, gameId]
     );
 
     // ✅ Save each player’s hand
     for (const p of game.players) {
       const hand = JSON.stringify(p.cards || []);
-      await db.execute(
-        'UPDATE game_players SET hand = ? WHERE game_id = ? AND player_id = ?',
+      await db.query(
+        'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
         [hand, gameId, p.id]
       );
     }
@@ -267,14 +267,14 @@ async function startGame(gameId, playerId) {
 async function playCard(gameId, playerId, cardIndex, chosenColor = null) {
   try {
     // ✅ Load player
-    const [playerRows] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ? AND player_id = ?',
+    const [playerRows] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
       [gameId, playerId]
     );
     if (!playerRows.length) return { success: false, message: 'Player not in this game' };
 
     // ✅ Load game info
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id = ?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (!gameRows.length) return { success: false, message: 'Game not found' };
 
     const gameData = gameRows[0];
@@ -288,7 +288,7 @@ async function playCard(gameId, playerId, cardIndex, chosenColor = null) {
     }
 
     // ✅ Restore players & hands
-    const [allPlayers] = await db.execute('SELECT * FROM game_players WHERE game_id = ?', [gameId]);
+    const [allPlayers] = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
     allPlayers.forEach((p) => {
       const added = game.addPlayer(p.player_id, p.player_name || p.player_id);
       if (p.hand) {
@@ -313,12 +313,12 @@ async function playCard(gameId, playerId, cardIndex, chosenColor = null) {
     if (!result.success) return result;
 
     // ✅ Save hand & discard pile
-    await db.execute(
-      'UPDATE game_players SET hand = ? WHERE game_id = ? AND player_id = ?',
+    await db.query(
+      'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
       [JSON.stringify(game.getPlayerCards(playerId)), gameId, playerId]
     );
-    await db.execute(
-      'UPDATE games SET discard_pile = ?, current_player_id = ? WHERE id = ?',
+    await db.query(
+      'UPDATE games SET discard_pile = $1, current_player_id = $1 WHERE id = $1',
       [JSON.stringify(game.discardPile), game.players[game.currentPlayerIndex]?.id || null, gameId]
     );
 
@@ -341,8 +341,8 @@ async function playCard(gameId, playerId, cardIndex, chosenColor = null) {
 async function drawCard(playerId,autoPlay = false, chosenColor= null) {
   try {
     // ✅ Find player's game
-    const [playerRows] = await db.execute(
-      'SELECT * FROM game_players WHERE player_id = ?',
+    const [playerRows] = await db.query(
+      'SELECT * FROM game_players WHERE player_id = $1',
       [playerId]
     );
     if (!playerRows.length) return { success: false, message: 'Player not in any game' };
@@ -350,7 +350,7 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
     const gameId = playerRows[0].game_id;
 
     // ✅ Load game
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id = ?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (!gameRows.length) return { success: false, message: 'Game not found' };
 
     const gameData = gameRows[0];
@@ -362,8 +362,8 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
     }
 
     // ✅ Restore all players and their hands
-    const [allPlayers] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ?',
+    const [allPlayers] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1',
       [gameId]
     );
     allPlayers.forEach((p) => {
@@ -408,8 +408,8 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
     const isPlayable = drawnCard.color === 'wild' || drawnCard.color === topColor || drawnCard.value === topCard.value;
 
     // ✅ Save hand to DB
-    await db.execute(
-      'UPDATE game_players SET hand = ? WHERE game_id = ? AND player_id = ?',
+    await db.query(
+      'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
       [JSON.stringify(afterHand), gameId, playerId]
     );
 
@@ -419,12 +419,12 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
       const playResult = game.playCard(playerId, cardIndex, chosenColor);
 
       if (playResult.success) {
-        await db.execute(
-          'UPDATE game_players SET hand = ? WHERE game_id = ? AND player_id = ?',
+        await db.query(
+          'UPDATE game_players SET hand = $1 WHERE game_id = $1 AND player_id = $1',
           [JSON.stringify(game.getPlayerCards(playerId)), gameId, playerId]
         );
-        await db.execute(
-          'UPDATE games SET discard_pile = ?, current_player_id = ? WHERE id = ?',
+        await db.query(
+          'UPDATE games SET discard_pile = $1, current_player_id = $1 WHERE id = $1',
           [JSON.stringify(game.discardPile), game.players[game.currentPlayerIndex].id, gameId]
         );
       }
@@ -445,8 +445,8 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
     }
 
     const nextPlayerId = game.players[game.currentPlayerIndex].id;
-    await db.execute(
-      'UPDATE games SET current_player_id = ?, discard_pile = ? WHERE id = ?',
+    await db.query(
+      'UPDATE games SET current_player_id = $1, discard_pile = $1 WHERE id = $1',
       [nextPlayerId, JSON.stringify(game.discardPile), gameId]
     );
 
@@ -476,15 +476,15 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
 async function getGameState(playerId, gameId) {
   try {
     // ✅ Validate player belongs to this game
-    const [playerRows] = await db.execute(
-      'SELECT * FROM game_players WHERE game_id = ? AND player_id = ?',
+    const [playerRows] = await db.query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $1',
       [gameId, playerId]
     );
     if (playerRows.length === 0)
       return { success: false, message: 'Player not found in this game' };
 
     // ✅ Load game data
-    const [gameRows] = await db.execute('SELECT * FROM games WHERE id = ?', [gameId]);
+    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
 
@@ -499,7 +499,7 @@ async function getGameState(playerId, gameId) {
     }
 
     // ✅ Restore all players + their hands
-    const [allPlayers] = await db.execute('SELECT * FROM game_players WHERE game_id = ?', [gameId]);
+    const [allPlayers] = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
     allPlayers.forEach((p) => {
       const added = game.addPlayer(p.player_id, p.player_name || p.player_id);
       if (p.hand) {
