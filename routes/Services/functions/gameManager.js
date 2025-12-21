@@ -61,7 +61,6 @@ async function getAvailableGames() {
   createdAt: row.created_at
 }));
 
-socket.emit('available_rooms', { rooms });
 
 
     return { success: true, rooms };

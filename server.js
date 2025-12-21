@@ -11,6 +11,7 @@ const {
   playCard,
   drawCard,
   getGameState,
+  getAvailableGames,
 } = require('./routes/Services/functions/gameManager');
 
 // ----------------------
