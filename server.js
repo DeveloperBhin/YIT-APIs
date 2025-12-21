@@ -77,18 +77,29 @@ socket.on('get_available_rooms', async () => {
 
 
   // JOIN GAME
-  socket.on('join_game', async ({ gameId, playerName }) => {
-    try {
-      const result = await joinGame(gameId, socket.id, playerName);
-      if (!result.success) return socket.emit('game_error', { message: result.message });
+socket.on('join_game', async ({ gameId, playerName }) => {
+  try {
+    const result = await joinGame(gameId, socket.id, playerName);
+    if (!result.success) return socket.emit('game_error', { message: result.message });
 
-      socket.join(gameId);
-      socket.emit('game_room_joined', { room: result.game, player: result.player });
-    } catch (err) {
-      console.error('❌ join_game error:', err.message);
-      socket.emit('game_error', { message: err.message });
-    }
-  });
+    socket.join(gameId);
+
+    // Send a payload that matches the frontend expectation
+    socket.emit('game_room_joined', {
+      room: {
+        gameId: result.gameId,
+        maxPlayers: result.room.maxPlayers,
+        players: result.game.players, // optional if frontend uses room.players
+      },
+      player: result.player,
+      game: result.game, // frontend expects this
+    });
+  } catch (err) {
+    console.error('❌ join_game error:', err.message);
+    socket.emit('game_error', { message: err.message });
+  }
+});
+
 
   // START GAME
   socket.on('start_game', async ({ gameId }) => {
