@@ -3,21 +3,22 @@ const db = require('../../../database');
 const UNOGame = require('./gameLogic');
 
 // 🔹 CREATE GAME
-async function createGame(hostId, playerName, hostName, maxPlayers = 6) {
-  const gameId = uuidv4();
+async function createGame(hostName, maxPlayers = 6) {
+  const hostId = uuidv4();       // UUID for the host
+  const gameId = uuidv4();       // UUID for the game
   const game = new UNOGame(maxPlayers);
 
   try {
+    // Add host to game state
     const addResult = game.addPlayer(hostId, hostName);
     if (!addResult.success)
       return { success: false, message: addResult.message };
 
     // Insert new game
-   await db.query(
-  'INSERT INTO games (id, player_name, host_id, status, max_players) VALUES ($1, $2, $3, $4, $5)',
-  [gameId, playerName, hostId, 'waiting', maxPlayers]
-);
-
+    await db.query(
+      'INSERT INTO games (id, host_id, player_name, status, max_players) VALUES ($1, $2, $3, $4, $5)',
+      [gameId, hostId, hostName, 'waiting', maxPlayers]
+    );
 
     // Insert host player
     await db.query(
