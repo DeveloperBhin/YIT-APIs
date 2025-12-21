@@ -62,13 +62,15 @@ io.on('connection', (socket) => {
 // Listen for request from clients
 socket.on('get_available_rooms', async () => {
   try {
-    const result = await getAvailableGames(2); // 2 minutes window
+    const result = await getAvailableGames(2);
+    console.log('🔹 Sending available_rooms:', result.rooms);
     socket.emit('available_rooms', { rooms: result.rooms });
   } catch (err) {
     console.error('❌ get_available_rooms error:', err.message);
     socket.emit('available_rooms', { rooms: [] });
   }
 });
+
 
   // JOIN GAME
   socket.on('join_game', async ({ gameId, playerName }) => {
