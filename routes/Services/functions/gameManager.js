@@ -47,36 +47,31 @@ async function createGame(hostName, maxPlayers = 6) {
 }
 
 
-async function getAvailableGames(minutesAgo = 2) {
+ async function getAvailableGames(minutesAgo = 2) {
   try {
-    const { rows } = await db.query(
-      `
-      SELECT 
-        g.id AS game_id,
-        g.host_id,
-        g.player_name AS host_name,
-        g.max_players,
-        g.status,
-        g.created_at,
-        COUNT(p.player_id) AS current_players
-      FROM games g
-      LEFT JOIN game_players p ON g.id = p.game_id
-      WHERE g.status = 'waiting'
-        AND g.created_at >= NOW() - ($1 || ' minutes')::INTERVAL
-      GROUP BY g.id, g.host_id, g.player_name, g.max_players, g.status, g.created_at
-      ORDER BY g.created_at DESC
-      `,
-      [minutesAgo.toString()]
+    const result = await db.query(
+      `SELECT 
+          g.id AS "gameId",
+          g.max_players AS "maxPlayers",
+          g.player_name AS "hostName",
+          g.id AS "hostId",
+          g.created_at AS "createdAt",
+          COUNT(p.player_id) AS "currentPlayers"
+       FROM games g
+       LEFT JOIN game_players p ON g.id = p.game_id
+       WHERE g.status = $1 
+         AND g.created_at >= NOW() - ($2 || ' minutes')::interval
+       GROUP BY g.id`,
+      ['waiting', minutesAgo]
     );
 
-    const rooms = rows.map((r) => ({
-      gameId: r.game_id,
-      hostId: r.host_id,
-      hostName: r.host_name,
-      maxPlayers: r.max_players,
-      currentPlayers: Number(r.current_players),
-      status: r.status,
-      createdAt: r.created_at,
+    const rooms = result.rows.map((r) => ({
+      gameId: r.gameId,
+      maxPlayers: Number(r.maxPlayers),
+      currentPlayers: Number(r.currentPlayers),
+      hostName: r.hostName,
+      hostId: r.hostId,
+      createdAt: r.createdAt,
     }));
 
     return { success: true, rooms };
