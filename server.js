@@ -65,7 +65,7 @@ socket.on('get_available_rooms', async () => {
   console.log('🔹 Socket received get_available_rooms');
 
   try {
-    const result = await getAvailableGames(); // 2-minute window
+    const result = await getAvailableGames(2); // 2-minute window
     console.log('🔹 getAvailableGames result:', result); // <-- check what it returns
     socket.emit('available_rooms', { rooms: result.rooms });
   } catch (err) {

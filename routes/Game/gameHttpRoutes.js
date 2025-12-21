@@ -25,8 +25,8 @@ router.post('/games', async (req, res) => {
 
 router.post('/getgames', async (req, res) => {
   try {
-    // const { minutesAgo } = req.body || {};
-    const result = await getAvailableGames();
+    const { minutesAgo } = req.body || {};
+    const result = await getAvailableGames(minutesAgo = 2);
 
     res.status(200).json(result);
   } catch (err) {
