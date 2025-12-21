@@ -84,19 +84,22 @@ const result = await db.query(
 async function joinGame(gameId, playerId, playerName) {
   try {
     // Check game exists
-    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
-    if (gameRows.length === 0)
-      return { success: false, message: 'Game not found' };
-    if (gameRows[0].status !== 'waiting')
-      return { success: false, message: 'Game already started' };
+    const result = await db.query('SELECT * FROM games WHERE id = $1', [gameId]);
+const gameRows = result.rows;  // now gameRows is an array
+if (gameRows.length === 0)
+  return { success: false, message: 'Game not found' };
+if (gameRows[0].status !== 'waiting')
+  return { success: false, message: 'Game already started' };
 
     const game = new UNOGame(gameRows[0].max_players);
 
     // Load existing players
-    const [playerRows] = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
-    playerRows.forEach((p) => {
-      game.addPlayer(p.player_id, p.player_name || `Player-${p.player_id.slice(0, 5)}`);
-    });
+    const playerResult = await db.query('SELECT * FROM game_players WHERE game_id = $1', [gameId]);
+const playerRows = playerResult.rows;
+playerRows.forEach((p) => {
+  game.addPlayer(p.player_id, p.player_name || `Player-${p.player_id.slice(0, 5)}`);
+});
+
 
     // Add new player
     const addResult = game.addPlayer(playerId, playerName);
