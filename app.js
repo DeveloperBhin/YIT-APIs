@@ -21,7 +21,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Import Game Routes (HTTP)
 const gameRoutes = require('./routes/Game/gameHttpRoutes');
+const gameAuth = require('./routes/Game/AuthPlayer');
+
 app.use('/api', gameRoutes);
+app.use('/auth', gameAuth)
 
 // Health check endpoint
 app.get('/', (req, res) => {

@@ -11,9 +11,10 @@ const {
   getGameState,
   getAvailableGames
 } = require('../Services/functions/gameManager'); // your existing functions
+const { PlayerAuth } = require('../middlewares/PlayerAuth');
 
 // Create game
-router.post('/games', async (req, res) => {
+router.post('/games',PlayerAuth, async (req, res) => {
   const {playerName, maxPlayers } = req.body;
   if(!playerName || !maxPlayers){
         return res.status(400).json({ success: false, message: "required maxPlayers or Players name" });
@@ -23,7 +24,7 @@ router.post('/games', async (req, res) => {
   res.json(result);
 });
 
-router.post('/getgames', async (req, res) => {
+router.post('/getgames',PlayerAuth, async (req, res) => {
   try {
     const { minutesAgo } = req.body || {};
     const result = await getAvailableGames(minutesAgo || 2);
@@ -37,7 +38,7 @@ router.post('/getgames', async (req, res) => {
 
 
 // Join game
-router.post('/games/join', async (req, res) => {
+router.post('/games/join',PlayerAuth, async (req, res) => {
   const { playerId,gameId, playerName } = req.body;
   if(!playerId || !playerName || !gameId){
         return res.status(400).json({ success: false, message: "mising some required " });
@@ -49,7 +50,7 @@ router.post('/games/join', async (req, res) => {
 
 // Start game
 // Start game
-router.post('/games/start', async (req, res) => {
+router.post('/games/start',PlayerAuth, async (req, res) => {
   const { gameId, playerId } = req.body;
   if(!playerId || !gameId){
         return res.status(400).json({ success: false, message: "mising some required " });
@@ -61,7 +62,7 @@ router.post('/games/start', async (req, res) => {
 
 
 // Play card
-router.post('/games/play', async (req, res) => {
+router.post('/games/play',PlayerAuth, async (req, res) => {
   const { gameId,playerId, cardIndex, chosenColor } = req.body;
   if(!playerId || !cardIndex || !gameId || !chosenColor){
         return res.status(400).json({ success: false, message: "mising some required " });
@@ -72,7 +73,7 @@ router.post('/games/play', async (req, res) => {
 });
 
 // Draw card
-router.post('/games/draw', async (req, res) => {
+router.post('/games/draw',PlayerAuth, async (req, res) => {
   const { playerId } = req.body;
   if(!playerId ){
         return res.status(400).json({ success: false, message: "mising some required " });
@@ -83,7 +84,7 @@ router.post('/games/draw', async (req, res) => {
 });
 
 // Leave game
-router.post('/games/leave', async (req, res) => {
+router.post('/games/leave',PlayerAuth, async (req, res) => {
   const { playerId ,gameId} = req.body;
   if(!playerId || !gameId){
         return res.status(400).json({ success: false, message: "required playerId or gameId" });
@@ -94,7 +95,7 @@ router.post('/games/leave', async (req, res) => {
 });
 
 // Get game state
-router.post('/games/state', async (req, res) => {
+router.post('/games/state',PlayerAuth, async (req, res) => {
   const { playerId,gameId} = req.body;
   if(!playerId || !gameId){
         return res.status(400).json({ success: false, message: "mising some required " });

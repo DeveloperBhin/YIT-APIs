@@ -107,7 +107,7 @@ socket.on('join_game', async ({ gameId, playerName }) => {
       const result = await startGame(gameId, socket.id);
       if (!result.success) return socket.emit('game_error', { message: result.message });
 
-      await db.execute('UPDATE games SET status = ? WHERE id = ?', ['playing', gameId]);
+      await db.query('UPDATE games SET status = ? WHERE id = ?', ['playing', gameId]);
       io.to(gameId).emit('game_state', { game: { ...result.game, gameStatus: 'playing' } });
 
       // Send each player's hand privately
