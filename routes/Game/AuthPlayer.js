@@ -253,7 +253,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     };
 
     // Save session in Redis (expire in 1 hour = 3600s)
-    await redis.setex(`session:${sessionId}`, 3600, JSON.stringify(sessionData));
+    await redis.set(`session:${sessionId}`, 3600, JSON.stringify(sessionData));
 
     // Send response
     res.status(200).json({
