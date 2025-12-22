@@ -2,6 +2,7 @@
 // import jwt from 'jsonwebtoken';
 const db = require('../../database');
 const getSession  = require ('./Sessions');
+const jwt  = require ('jsonwebtoken');
 
 
 
@@ -95,49 +96,25 @@ const getSession  = require ('./Sessions');
 //   }
 // };
 
-const PlayerAuth = async (req, res, next) => {
-  const sessionId = req.headers['x-session-id'];
+
+const PlayerAuth = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.status(401).json({ message: 'Authorization header missing' });
+
+  const token = authHeader.split(' ')[1]; // Bearer <token>
+  if (!token) return res.status(401).json({ message: 'Token missing' });
 
   try {
-    // 🟢 1️⃣ SESSION-BASED AUTH (normal users)
-    if (sessionId) {
-      const session = await getSession(sessionId); // from Redis
-
-      if (session && session.user_id) {
-        // Fetch user info from database
-        const [rows] = await db.query(
-          `SELECT player_id, full_name, email, phone
-           FROM player WHERE player_id = $1`,
-          [session.player_id]
-        );
-
-        if (rows.length === 0) {
-          return res.status(403).json({ message: 'User not found' });
-        }
-
-        const user = rows[0];
-
-        req.user = {
-          player_id: user.player_id,
-          full_name: user.full_name,
-          email: user.email,
-          phone: user.phone,
-          sessionId
-        };
-
-        return next();
-      } else {
-        return res.status(403).json({ message: 'Invalid or expired session' });
-      }
-    }
-
-    // 🟣 2️⃣ API KEY-BASED AUTH (for partner systems)
-  
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // attach player info
+    next();
   } catch (err) {
-    console.error('PlayerAuth error:', err);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error('JWT auth error:', err);
+    res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
+
+
 
 module.exports = {
     PlayerAuth

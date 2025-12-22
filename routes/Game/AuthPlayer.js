@@ -240,20 +240,34 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // ✅ Create Redis session
-    const sessionId = uuidv4();
-    const sessionData = {
-      player_id: player.id,
-      first_name: player.first_name,
-      second_name: player.second_name,
-      email: player.email,
-      phone: player.phone_number,
-      status: player.status,
-      createdAt: Date.now()
-    };
+// inside login route after password check
+const token = jwt.sign(
+  {
+    player_id: player.id,
+    first_name: player.first_name,
+    second_name: player.second_name,
+    email: player.email,
+    phone: player.phone_number
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' } // token valid for 7 days
+);
 
-    // Save session in Redis (expire in 1 hour = 3600s)
-// await redis.set(`session:${sessionId}`, JSON.stringify(sessionData), { EX: 3600 });
+res.status(200).json({
+  message: 'Login successful',
+  token,
+  player: {
+    player_id: player.id,
+    first_name: player.first_name,
+    second_name: player.second_name,
+    email: player.email,
+    phone: player.phone_number,
+    status: player.status
+  }
+});
+
+  
+
 
     // Send response
     res.status(200).json({
