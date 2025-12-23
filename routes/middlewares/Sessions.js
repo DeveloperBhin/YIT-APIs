@@ -1,4 +1,4 @@
-const  redis = require('../../redis');
+// const  redis = require('../../redis');
 const  { v4 : uuidv4 } = require( 'uuid');
 const db  = require  ('../../database');
 const crypto  = require ('crypto');
