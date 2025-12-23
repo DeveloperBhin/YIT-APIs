@@ -113,53 +113,60 @@ const signupSchema = Joi.object({
 // ✅ SIGNUP
 // -------------------------
 router.post('/signup', async (req, res) => {
-  const { error, value } = signupSchema.validate(req.body, {
-    abortEarly: false,
-    stripUnknown: true
-  });
-
-  if (error) {
-    const validationErrors = error.details.map(detail => ({
-      field: detail.path.join('.'),
-      message: detail.message
-    }));
-    return res.status(400).json({
-      message: 'Validation failed',
-      errors: validationErrors
-    });
-  }
-
-  const { first_name, second_name, email, phone_number, password } = value;
-
-  const normalizePhone = (phone) => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('0')) return '255' + cleaned.slice(1);
-    if (cleaned.startsWith('255')) return cleaned;
-    return '255' + cleaned;
-  };
-  const normalizedPhone = normalizePhone(phone_number);
-
-  if (!/^255\d{9}$/.test(normalizedPhone)) {
-    return res.status(400).json({
-      message: 'Invalid phone number format',
-      error: 'Please provide a valid Tanzanian phone number starting with 255'
-    });
-  }
-
   try {
-    // ✅ Check existing
-    const exists = await db.query(
+    // ✅ Validate input
+    const { error, value } = signupSchema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
+
+    // If validation fails or no value returned
+    if (error || !value) {
+      const validationErrors = error?.details?.map(detail => ({
+        field: detail.path.join('.'),
+        message: detail.message,
+      })) || [];
+
+      return res.status(400).json({
+        message: 'Validation failed',
+        errors: validationErrors.length ? validationErrors : ['Invalid input data'],
+      });
+    }
+
+    // ✅ Safe destructuring now that value is guaranteed
+    const { first_name, second_name, email, phone_number, password } = value;
+
+    // ✅ Normalize phone number
+    const normalizePhone = (phone) => {
+      const cleaned = phone.replace(/\D/g, '');
+      if (cleaned.startsWith('0')) return '255' + cleaned.slice(1);
+      if (cleaned.startsWith('255')) return cleaned;
+      return '255' + cleaned;
+    };
+    const normalizedPhone = normalizePhone(phone_number);
+
+    // ✅ Check phone format
+    if (!/^255\d{9}$/.test(normalizedPhone)) {
+      return res.status(400).json({
+        message: 'Invalid phone number format',
+        error: 'Please provide a valid Tanzanian phone number starting with 255',
+      });
+    }
+
+    // ✅ Check for existing player
+    const existing = await db.query(
       `SELECT id FROM player WHERE email = $1 OR phone_number = $2`,
       [email.toLowerCase(), normalizedPhone]
     );
-    if (exists.rows.length > 0) {
+
+    if (existing.rows.length > 0) {
       return res.status(409).json({ message: 'User already exists' });
     }
 
     // ✅ Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ Insert new player
+    // ✅ Insert player
     const result = await db.query(
       `INSERT INTO player (first_name, second_name, email, phone_number, password_hash, status)
        VALUES ($1, $2, $3, $4, $5, 'ACTIVE')
@@ -167,23 +174,27 @@ router.post('/signup', async (req, res) => {
       [first_name, second_name, email.toLowerCase(), normalizedPhone, hashedPassword]
     );
 
-    const player = result.rows[0];
+    const user = result.rows[0];
 
-    // ✅ Generate token
+    // ✅ Generate JWT token
     const token = jwt.sign(
-      { id: player.id, email: player.email },
+      { id: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    return res.status(201).json({
+    // ✅ Return success response
+    res.status(201).json({
       message: 'Signup successful',
       token,
-      player
+      user,
     });
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ message: 'Signup failed', error: err.message });
+    res.status(500).json({
+      message: 'Signup failed',
+      error: err.message || 'Internal server error',
+    });
   }
 });
 
