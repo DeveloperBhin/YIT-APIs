@@ -7,7 +7,6 @@ const crypto = require('crypto');
 const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
 const db = require('../../database');
-const getSession  = require('../../routes/middlewares/Sessions');
 
 // const redis = require('../../redis');
 const { PlayerAuth } = require('../middlewares/PlayerAuth');

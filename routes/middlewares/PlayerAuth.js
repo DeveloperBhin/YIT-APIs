@@ -1,7 +1,7 @@
 
 // import jwt from 'jsonwebtoken';
 const db = require('../../database');
-const getSession  = require ('./Sessions');
+// const getSession  = require ('./Sessions');
 const jwt  = require ('jsonwebtoken');
 
 
