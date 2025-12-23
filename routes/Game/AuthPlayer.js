@@ -110,6 +110,9 @@ const signupSchema = Joi.object({
 
 
 
+// -------------------------
+// ✅ SIGNUP
+// -------------------------
 router.post('/signup', async (req, res) => {
   const { error, value } = signupSchema.validate(req.body, {
     abortEarly: false,
@@ -129,14 +132,12 @@ router.post('/signup', async (req, res) => {
 
   const { first_name, second_name, email, phone_number, password } = value;
 
-  // Normalize phone number
   const normalizePhone = (phone) => {
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.startsWith('0')) return '255' + cleaned.slice(1);
     if (cleaned.startsWith('255')) return cleaned;
     return '255' + cleaned;
   };
-
   const normalizedPhone = normalizePhone(phone_number);
 
   if (!/^255\d{9}$/.test(normalizedPhone)) {
@@ -147,58 +148,49 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
-    // Check for existing user
-    const result = await db.query(
+    // ✅ Check existing
+    const exists = await db.query(
       `SELECT id FROM player WHERE email = $1 OR phone_number = $2`,
       [email.toLowerCase(), normalizedPhone]
     );
-
-    if (result.rows.length > 0) {
+    if (exists.rows.length > 0) {
       return res.status(409).json({ message: 'User already exists' });
     }
 
-    // Hash password
+    // ✅ Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert into DB using normalized phone
-    const insertResult = await db.query(
-      `INSERT INTO player (first_name, second_name, email, phone_number, password_hash)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+    // ✅ Insert new player
+    const result = await db.query(
+      `INSERT INTO player (first_name, second_name, email, phone_number, password_hash, status)
+       VALUES ($1, $2, $3, $4, $5, 'ACTIVE')
+       RETURNING id, first_name, second_name, email, phone_number, status`,
       [first_name, second_name, email.toLowerCase(), normalizedPhone, hashedPassword]
     );
 
-    const user = insertResult.rows[0];
+    const player = result.rows[0];
 
-    // Generate JWT token
+    // ✅ Generate token
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: player.id, email: player.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: '7d' }
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Signup successful',
       token,
-      user: {
-        id: user.id,
-        first_name: user.first_name,
-        second_name: user.second_name,
-        email: user.email,
-        phone_number: user.phone_number
-      }
+      player
     });
   } catch (err) {
     console.error('Signup error:', err);
-    res.status(500).json({ message: 'Signup failed', error: 'Internal server error' });
+    res.status(500).json({ message: 'Signup failed', error: err.message });
   }
 });
 
-
-
-
-
-
+// -------------------------
+// ✅ LOGIN
+// -------------------------
 router.post('/login', loginLimiter, async (req, res) => {
   const { type, value, password } = req.body;
 
@@ -207,7 +199,6 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Missing login fields' });
     }
 
-    // Normalize phone numbers
     const normalizePhone = (phone) => {
       const cleaned = phone.replace(/\D/g, '');
       if (cleaned.startsWith('0')) return '255' + cleaned.slice(1);
@@ -227,53 +218,32 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     const result = await db.query(query, [identifier]);
-    const players = result.rows;
-
-    if (players.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const player = players[0];
+    const player = result.rows[0];
     const isValid = await bcrypt.compare(password, player.password_hash);
-
     if (!isValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-// inside login route after password check
-const token = jwt.sign(
-  {
-    player_id: player.id,
-    first_name: player.first_name,
-    second_name: player.second_name,
-    email: player.email,
-    phone: player.phone_number
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: '7d' } // token valid for 7 days
-);
+    // ✅ Generate JWT token
+    const token = jwt.sign(
+      {
+        id: player.id,
+        first_name: player.first_name,
+        second_name: player.second_name,
+        email: player.email,
+        phone_number: player.phone_number
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
-res.status(200).json({
-  message: 'Login successful',
-  token,
-  player: {
-    player_id: player.id,
-    first_name: player.first_name,
-    second_name: player.second_name,
-    email: player.email,
-    phone: player.phone_number,
-    status: player.status
-  }
-});
-
-  
-
-
-    // Send response
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Login successful',
-      sessionId,
-      expires_in: 3600,
+      token,
       player: {
         id: player.id,
         first_name: player.first_name,
@@ -285,9 +255,11 @@ res.status(200).json({
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Login failed', error: 'Internal server error' });
+    res.status(500).json({ message: 'Login failed', error: err.message });
   }
 });
+
+module.exports = router;
 
 
 
@@ -351,7 +323,7 @@ router.post('/request-password-reset', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpKey = `reset:${type}:${identifier}`;
 
-    await redis.setex(otpKey, 300, JSON.stringify({ code: otp, userId: user.id, attempts: 0 }));
+    // await redis.setex(otpKey, 300, JSON.stringify({ code: otp, userId: user.id, attempts: 0 }));
 
     if (type === 'phone') {
       const phoneForSMS = identifier.startsWith('255') ? `+${identifier}` : identifier;
