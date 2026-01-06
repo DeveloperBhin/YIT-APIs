@@ -19,13 +19,22 @@ const {
 // INITIALIZE SERVER
 // ----------------------
 const server = http.createServer(app);
+// const io = new Server(server, {
+//   cors: {
+//     methods: ['GET', 'POST'],
+//     credentials: true,
+//   },
+//   pingTimeout: 60000,
+// });
+
 const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'https://yit-web.deploy.tz/',
-    methods: ['GET', 'POST'],
-    credentials: true,
+    methods: ["GET", "POST"],
   },
+  transports: ["polling", "websocket"],
   pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // ----------------------

@@ -126,6 +126,7 @@ router.post('/signup', async (req, res) => {
         field: detail.path.join('.'),
         message: detail.message,
       })) || [];
+      
 
       return res.status(400).json({
         message: 'Validation failed',
