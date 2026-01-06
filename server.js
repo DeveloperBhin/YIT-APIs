@@ -29,7 +29,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'https://yit-web.deploy.tz/',
+    origin: process.env.FRONTEND_URL || 'https://yit-web.deploy.com/',
     methods: ["GET", "POST"],
   },
   transports: ["polling", "websocket"],
