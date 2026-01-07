@@ -31,6 +31,8 @@ const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'https://yit-web.onrender.com',
     methods: ["GET", "POST"],
+        credentials: true, // must be true for withCredentials
+
   },
   // transports: ["polling"], // match client
   pingTimeout: 60000,
