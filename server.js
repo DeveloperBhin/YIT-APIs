@@ -27,14 +27,15 @@ const server = http.createServer(app);
 //   pingTimeout: 60000,
 // });
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yit-web.onrender.com';
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'https://yit-web.onrender.com',
-    methods: ["GET", "POST"],
-        credentials: true, // must be true for withCredentials
-
+    origin: FRONTEND_URL,
+    methods: ['GET', 'POST'],
+    credentials: true,
   },
-  // transports: ["polling"], // match client
+  transports: ['websocket', 'polling'], // allow upgrade
   pingTimeout: 60000,
   pingInterval: 25000,
 });
