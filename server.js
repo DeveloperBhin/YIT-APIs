@@ -32,7 +32,7 @@ const io = new Server(server, {
     origin: process.env.FRONTEND_URL || 'https://yit-web.onrender.com',
     methods: ["GET", "POST"],
   },
-  transports: ["polling"], // match client
+  // transports: ["polling"], // match client
   pingTimeout: 60000,
   pingInterval: 25000,
 });
