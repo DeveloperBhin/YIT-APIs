@@ -76,31 +76,62 @@ io.on('connection', (socket) => {
   // ----------------------
   // JOIN GAME
   // ----------------------
+  // socket.on('join_game', async ({ gameId, token }) => {
+  //   try {
+  //     if (!token) return socket.emit('game_error', { message: 'Token missing' });
+
+  //     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  //     const playerId = decoded.id;
+  //     const playerName = `${decoded.first_name} ${decoded.second_name}`;
+
+  //     const result = await joinGame(gameId, socket.id, playerName, playerId);
+  //     if (!result.success) return socket.emit('game_error', { message: result.message });
+
+  //     socket.join(gameId);
+
+  //     socket.emit('game_room_joined', {
+  //       room: {
+  //         gameId: result.gameId,
+  //         maxPlayers: result.room.maxPlayers,
+  //         players: result.game.players,
+  //       },
+  //       player: result.player,
+  //       game: result.game,
+  //     });
+  //   } catch (err) {
+  //     console.error('❌ join_game error:', err.message);
+  //     socket.emit('game_error', { message: 'Authentication failed' });
+  //   }
+  // });
+
   socket.on('join_game', async ({ gameId, token }) => {
     try {
-      if (!token) return socket.emit('game_error', { message: 'Token missing' });
+      // validate token
+      const user = verifyToken(token); // implement your JWT verify
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const playerId = decoded.id;
-      const playerName = `${decoded.first_name} ${decoded.second_name}`;
+      const room = findRoomById(gameId); // get room
+      if (!room) {
+        return socket.emit('game_error', { message: 'Room not found' });
+      }
 
-      const result = await joinGame(gameId, socket.id, playerName, playerId);
-      if (!result.success) return socket.emit('game_error', { message: result.message });
+      // add player to room
+      const player = addPlayerToRoom(room, user);
 
       socket.join(gameId);
 
+      // emit to the joining player
       socket.emit('game_room_joined', {
-        room: {
-          gameId: result.gameId,
-          maxPlayers: result.room.maxPlayers,
-          players: result.game.players,
-        },
-        player: result.player,
-        game: result.game,
+        room,
+        player,
+        game: room.gameState,
       });
+
+      // optional: broadcast to others
+      socket.to(gameId).emit('player_joined', player);
+
     } catch (err) {
-      console.error('❌ join_game error:', err.message);
-      socket.emit('game_error', { message: 'Authentication failed' });
+      console.error(err);
+      socket.emit('game_error', { message: 'Failed to join room' });
     }
   });
 
