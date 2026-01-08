@@ -12,7 +12,17 @@ app.set('trust proxy', 1);
 // ----------------------
 // MIDDLEWARES
 // ----------------------
-app.use(cors());
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://yit-web.onrender.com';
+
+app.use(cors({
+  origin: FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// handle preflight
+app.options('*', cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 

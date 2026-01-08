@@ -4,6 +4,7 @@ const app = require('./app'); // Express app
 const db = require('./database'); // PostgreSQL client (pg)
 const jwt = require('jsonwebtoken');
 
+
 const {
   createGame,
   joinGame,
@@ -107,36 +108,38 @@ io.on('connection', (socket) => {
   //   }
   // });
 
-  socket.on('join_game', async ({ gameId, token }) => {
-    try {
-      // validate token
-      const user = verifyToken(token); // implement your JWT verify
+socket.on('join_game', async ({ gameId, token }) => {
+  try {
+    if (!token) return socket.emit('game_error', { message: 'Token missing' });
 
-      const room = findRoomById(gameId); // get room
-      if (!room) {
-        return socket.emit('game_error', { message: 'Room not found' });
-      }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const playerId = decoded.id;
+    const playerName = `${decoded.first_name} ${decoded.second_name}`;
 
-      // add player to room
-      const player = addPlayerToRoom(room, user);
-
-      socket.join(gameId);
-
-      // emit to the joining player
-      socket.emit('game_room_joined', {
-        room,
-        player,
-        game: room.gameState,
-      });
-
-      // optional: broadcast to others
-      socket.to(gameId).emit('player_joined', player);
-
-    } catch (err) {
-      console.error(err);
-      socket.emit('game_error', { message: 'Failed to join room' });
+    const result = await joinGame(gameId, socket.id, playerName, playerId);
+    if (!result.success) {
+      return socket.emit('game_error', { message: result.message });
     }
-  });
+
+    socket.join(gameId);
+
+    socket.emit('game_room_joined', {
+      room: {
+        gameId: result.gameId,
+        maxPlayers: result.room.maxPlayers,
+        players: result.game.players,
+      },
+      player: result.player,
+      game: result.game,
+    });
+
+    socket.to(gameId).emit('player_joined', result.player);
+
+  } catch (err) {
+    console.error('❌ join_game error:', err.message);
+    socket.emit('game_error', { message: 'Authentication failed' });
+  }
+});
 
   // ----------------------
   // GET AVAILABLE ROOMS
@@ -177,21 +180,29 @@ io.on('connection', (socket) => {
   // ----------------------
   // DISCONNECT
   // ----------------------
-  socket.on('disconnect', async () => {
-    console.log('Player disconnected:', socket.id,reason);
-    try {
-      const query = `SELECT game_id FROM game_players WHERE socket_id = $1`;
-      const { rows } = await db.query(query, [socket.id]);
-      if (rows.length > 0) {
-        const gameId = rows[0].game_id;
-        await leaveGame(socket.id, gameId);
-        const state = await getGameState(socket.id, gameId);
-        io.to(gameId).emit('game_state', state.game);
-      }
-    } catch (err) {
-      console.warn('Error on disconnect leaveGame:', err.message);
-    }
-  });
+socket.on('disconnect', async (reason) => {
+  console.log('Player disconnected:', socket.id, 'Reason:', reason);
+
+  try {
+    const { rows } = await db.query(
+      'SELECT player_id, game_id FROM game_players WHERE socket_id = $1',
+      [socket.id]
+    );
+
+    if (!rows.length) return;
+
+    const { player_id, game_id } = rows[0];
+
+    await leaveGame(player_id, game_id);
+
+    const state = await getGameState(player_id, game_id);
+    io.to(game_id).emit('game_state', state.game);
+
+  } catch (err) {
+    console.warn('Disconnect cleanup failed:', err.message);
+  }
+});
+
 });
 
 // ----------------------
