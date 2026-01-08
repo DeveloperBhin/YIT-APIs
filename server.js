@@ -178,7 +178,7 @@ io.on('connection', (socket) => {
   // DISCONNECT
   // ----------------------
   socket.on('disconnect', async () => {
-    console.log('Player disconnected:', socket.id);
+    console.log('Player disconnected:', socket.id,reason);
     try {
       const query = `SELECT game_id FROM game_players WHERE socket_id = $1`;
       const { rows } = await db.query(query, [socket.id]);
