@@ -35,7 +35,7 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  transports: ['websocket', 'polling'], // allow upgrade
+  transports: [ 'polling','websocket'], // allow upgrade
   pingTimeout: 60000,
   pingInterval: 25000,
 });
