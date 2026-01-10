@@ -64,6 +64,16 @@ io.on('connection', (socket) => {
   // ----------------------
   // JOIN GAME
   // ----------------------
+
+  socket.on('get_game_state', async ({ gameId, playerId }) => {
+  const state = await getGameState(playerId, gameId);
+  if (state.success) {
+    socket.emit('game_state', state.game);
+  } else {
+    socket.emit('game_error', state.message);
+  }
+});
+
   socket.on('join_game', async ({ gameId, token }) => {
     try {
       if (!token) return socket.emit('game_error', { message: 'Token missing' });
