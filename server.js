@@ -123,6 +123,7 @@ socket.on('join_game', async ({ gameId, token }) => {
 
     socket.join(gameId);
 
+    // Emit initial room data
     socket.emit('game_room_joined', {
       room: {
         gameId: result.gameId,
@@ -133,6 +134,10 @@ socket.on('join_game', async ({ gameId, token }) => {
       game: result.game,
     });
 
+    // Emit the current game state explicitly
+    socket.emit('game_state', result.game); // <-- THIS LINE IS KEY
+
+    // Notify others in the room
     socket.to(gameId).emit('player_joined', result.player);
 
   } catch (err) {
@@ -140,6 +145,7 @@ socket.on('join_game', async ({ gameId, token }) => {
     socket.emit('game_error', { message: 'Authentication failed' });
   }
 });
+
 
   // ----------------------
   // GET AVAILABLE ROOMS
