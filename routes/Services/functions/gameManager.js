@@ -595,32 +595,29 @@ async function drawCard(playerId,autoPlay = false, chosenColor= null) {
 // 🔹 GET GAME STATE
 async function getGameState(playerId, gameId) {
   try {
-    // ✅ Validate player belongs to this game
-    const [playerRows] = await db.query(
-      'SELECT * FROM game_players WHERE game_id = $1::uuid AND player_id = $1::uuid',
-      [gameId, playerId]
-    );
+    const playerQuery = `
+      SELECT * 
+      FROM game_players 
+      WHERE game_id = $1::uuid AND player_id = $2::uuid
+    `;
+    const { rows: playerRows } = await db.query(playerQuery, [gameId, playerId]);
     if (playerRows.length === 0)
       return { success: false, message: 'Player not found in this game' };
 
-    // ✅ Load game data
-    const [gameRows] = await db.query('SELECT * FROM games WHERE id = $1::uuid', [gameId]);
+    const { rows: gameRows } = await db.query('SELECT * FROM games WHERE id = $1::uuid', [gameId]);
     if (gameRows.length === 0)
       return { success: false, message: 'Game not found' };
 
     const gameData = gameRows[0];
     const game = new UNOGame(gameData.max_players || 6);
 
-    // ✅ Restore discard pile
+    // Restore discard pile
     if (gameData.discard_pile) {
-      try { game.discardPile = JSON.parse(gameData.discard_pile); } catch (err) {
-        console.warn('⚠️ Failed to parse discard pile:', err.message);
-      }
+      try { game.discardPile = JSON.parse(gameData.discard_pile); } catch {}
     }
 
-    // ✅ Restore all players + their hands
-    const [allPlayers] = await db.query('SELECT * FROM game_players WHERE game_id = $1::uuid', [gameId]);
-    allPlayers.forEach((p) => {
+    const { rows: allPlayers } = await db.query('SELECT * FROM game_players WHERE game_id = $1::uuid', [gameId]);
+    allPlayers.forEach(p => {
       const added = game.addPlayer(p.player_id, p.player_name || p.player_id);
       if (p.hand) {
         try { added.player.cards = JSON.parse(p.hand); } catch {}
@@ -628,13 +625,11 @@ async function getGameState(playerId, gameId) {
       if (p.is_host) added.player.isHost = true;
     });
 
-    // ✅ Restore current turn
     if (gameData.current_player_id) {
       const currentIndex = game.players.findIndex(p => p.id === gameData.current_player_id);
       if (currentIndex >= 0) game.currentPlayerIndex = currentIndex;
     }
 
-    // ✅ Prepare view for this specific player
     const fullState = game.getGameState();
     const playerHand = game.getPlayerCards(playerId);
 
@@ -645,29 +640,24 @@ async function getGameState(playerId, gameId) {
       hasUno: p.hasUno,
       isHost: p.isHost,
       score: p.score,
-      ...(p.id === playerId ? { cards: playerHand } : {}) // only show own cards
+      ...(p.id === playerId ? { cards: playerHand } : {})
     }));
 
     return {
       success: true,
       message: 'Game state loaded successfully',
       gameId,
-      game: {
-        ...fullState,
-        players: visiblePlayers,
-        currentPlayerId: game.players[game.currentPlayerIndex]?.id || null,
-        discardPileTop: game.discardPile.at(-1) || null,
-      },
+      game: { ...fullState, players: visiblePlayers, currentPlayerId: game.players[game.currentPlayerIndex]?.id || null, discardPileTop: game.discardPile.at(-1) || null },
       playerCards: playerHand,
       discardPileTop: game.discardPile.at(-1) || null,
       currentPlayer: game.players[game.currentPlayerIndex]?.id || null,
     };
-
   } catch (err) {
     console.error('❌ getGameState error:', err.message);
     return { success: false, message: err.message };
   }
 }
+
 
 
 module.exports = {
