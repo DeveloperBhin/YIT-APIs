@@ -53,7 +53,7 @@ const result = await db.query(
       `SELECT g.id::uuid AS game_id, g.max_players, g.player_name AS host_name, g.created_at,
               COUNT(p.player_id) AS current_players
        FROM games g
-       LEFT JOIN game_players p ON g.id:uuid = p.game_id::uuid
+       LEFT JOIN game_players p ON g.id::uuid = p.game_id::uuid
        WHERE g.status = $1
          AND g.created_at >= NOW() - ($2 || ' minutes')::interval
        GROUP BY g.id::uuid`,
