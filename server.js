@@ -66,13 +66,22 @@ io.on('connection', (socket) => {
   // ----------------------
 
   socket.on('get_game_state', async ({ gameId, playerId }) => {
-  const state = await getGameState(playerId, gameId);
-  if (state.success) {
-    socket.emit('game_state', state.game);
-  } else {
-    socket.emit('game_error', state.message);
+  try {
+    const state = await getGameState(playerId, gameId);
+
+    if (!state.success || !state.game) {
+      return socket.emit('game_error', { message: state.message || 'Game not found' });
+    }
+
+    // ✅ Always wrap
+    socket.emit('game_state', { game: state.game });
+
+  } catch (err) {
+    console.error('❌ get_game_state error:', err.message);
+    socket.emit('game_error', { message: 'Internal server error' });
   }
 });
+
 
   socket.on('join_game', async ({ gameId, token }) => {
     try {
