@@ -162,7 +162,7 @@ socket.emit('game_room_joined', {
       socket.emit('game_room_left', result);
 
       const state = await getGameState(playerId, gameId);
-      io.to(gameId).emit('game_state', state.game);
+io.to(gameId).emit('game_state', { game: state.game });
     } catch (err) {
       console.error('❌ leave_game error:', err.message);
       socket.emit('game_error', { message: 'Internal server error' });
@@ -187,7 +187,7 @@ socket.emit('game_room_joined', {
       await leaveGame(player_id, game_id);
 
       const state = await getGameState(player_id, game_id);
-      io.to(game_id).emit('game_state', state.game);
+io.to(game_id).emit('game_state', { game: state.game });
 
     } catch (err) {
       console.warn('Disconnect cleanup failed:', err.message);
