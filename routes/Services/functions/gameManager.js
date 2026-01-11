@@ -3,7 +3,8 @@ const db = require('../../../database');
 const UNOGame = require('./gameLogic');
 
 // 🔹 CREATE GAME
-async function createGame(hostName, maxPlayers = 6) {
+async function createGame(hostName, maxPlayers = 6, hostId)
+ {
   const hostId = uuidv4();       // UUID for the host
   const gameId = uuidv4();       // UUID for the game
   const game = new UNOGame(maxPlayers);
@@ -180,7 +181,7 @@ async function leaveGame(playerId, gameId) {
       console.log(`👑 New host assigned: ${newHostId}`);
 
       // Update game state if needed
-      await db.quey(
+      await db.query(
         'UPDATE games SET host_id = $1::uuid WHERE id = $1::uuid',
         [newHostId, gameId]
       );

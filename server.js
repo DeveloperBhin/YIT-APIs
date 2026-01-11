@@ -49,12 +49,17 @@ io.on('connection', (socket) => {
       socket.join(result.gameId);
 
       // Send game state to creator
-      const state = await getGameState(playerId, result.gameId);
-      socket.emit('game_room_created', {
-        room: result.room,
-        player: result.player,
-        game: state.game,
-      });
+     const state = await getGameState(playerId, result.gameId);
+
+io.to(result.gameId).emit('game_state', {
+  game: state.game,
+});
+
+socket.emit('game_room_created', {
+  room: result.room,
+  player: result.player,
+});
+
     } catch (err) {
       console.error('❌ create_game error:', err.message);
       socket.emit('game_error', { message: 'Authentication failed' });
@@ -65,20 +70,29 @@ io.on('connection', (socket) => {
   // JOIN GAME
   // ----------------------
 
-  socket.on('get_game_state', async ({ gameId, playerId }) => {
+socket.on('get_game_state', async ({ gameId, token }) => {
   try {
+    if (!token) {
+      return socket.emit('game_error', { message: 'Token missing' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const playerId = decoded.id;
+
     const state = await getGameState(playerId, gameId);
 
     if (!state.success || !state.game) {
       return socket.emit('game_error', { message: state.message || 'Game not found' });
     }
 
-    // ✅ Always wrap
-    socket.emit('game_state', { game: state.game });
+    // ✅ ALWAYS wrap
+io.to(gameId).emit('game_state', {
+  game: state.game
+});
 
   } catch (err) {
     console.error('❌ get_game_state error:', err.message);
-    socket.emit('game_error', { message: 'Internal server error' });
+    socket.emit('game_error', { message: 'Authentication failed' });
   }
 });
 
@@ -98,11 +112,16 @@ io.on('connection', (socket) => {
 
       // Send full game state to joining player
       const state = await getGameState(playerId, gameId);
-      socket.emit('game_room_joined', {
-        room: result.room,
-        player: result.player,
-        game: state.game,
-      });
+
+io.to(gameId).emit('game_state', {
+  game: state.game,
+});
+
+socket.emit('game_room_joined', {
+  room: result.room,
+  player: result.player,
+});
+
 
       // Notify others
       socket.to(gameId).emit('player_joined', result.player);
