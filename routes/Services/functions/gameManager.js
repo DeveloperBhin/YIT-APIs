@@ -3,7 +3,7 @@ const db = require('../../../database');
 const UNOGame = require('./gameLogic');
 
 // 🔹 CREATE GAME
-async function createGame(hostName, maxPlayers = 6, hostId)
+async function createGame(hostName, maxPlayers = 6)
  {
   const hostId = uuidv4();       // UUID for the host
   const gameId = uuidv4();       // UUID for the game
